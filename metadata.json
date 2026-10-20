@@ -1,6 +1,6 @@
 {
-  "name": "SQL Studio - Interactive Database IDE",
-  "description": "A client-side interactive SQL learning IDE with in-browser SQLite WebAssembly, Monaco Editor, and challenge curriculum.",
+  "name": "SQL Academy - College Study Guide & Interactive IDE",
+  "description": "Comprehensive Database Management II & IT Specialist Certification study guide, interactive W3Schools-style practice sandboxes, in-browser SQLite AP database, and Monaco SQL terminal.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
