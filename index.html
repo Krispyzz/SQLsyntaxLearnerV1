@@ -1,0 +1,2147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SQL Studio - Interactive Database IDE</title>
+    <meta name="description" content="A client-side interactive SQL learning IDE with in-browser SQLite WebAssembly, Monaco Editor, and challenge curriculum." />
+    <meta property="og:title" content="SQL Studio - Interactive Database IDE" />
+    <meta property="og:description" content="A client-side interactive SQL learning IDE with in-browser SQLite WebAssembly, Monaco Editor, and challenge curriculum." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css" />
+
+    <style>
+      :root {
+        --bg-main: #18181b;
+        --bg-panel: #1e1e24;
+        --bg-header: #232730;
+        --bg-sidebar: #191c23;
+        --bg-card: #282c37;
+        --bg-code: #121316;
+        --border-color: #323846;
+        --border-subtle: #2a2f3b;
+        --text-primary: #e2e8f0;
+        --text-muted: #94a3b8;
+        --text-dim: #64748b;
+        --accent-emerald: #10b981;
+        --accent-emerald-hover: #059669;
+        --accent-amber: #f59e0b;
+        --accent-amber-hover: #d97706;
+        --accent-blue: #3b82f6;
+        --accent-red: #ef4444;
+        --accent-purple: #8b5cf6;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg-main);
+        color: var(--text-primary);
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-code);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3a3f4d;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #4a5163;
+      }
+
+      /* App Top Header Bar */
+      header.app-header {
+        height: 48px;
+        background-color: #14161b;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        user-select: none;
+        flex-shrink: 0;
+      }
+
+      .header-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        color: #f1f5f9;
+      }
+
+      .brand-icon {
+        width: 24px;
+        height: 24px;
+        background: linear-gradient(135deg, #3b82f6, #06b6d4);
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .header-meta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 12px;
+      }
+
+      .db-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: #1c2230;
+        border: 1px solid #2e384d;
+        padding: 3px 10px;
+        border-radius: 12px;
+        color: #94a3b8;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: var(--accent-emerald);
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+      }
+
+      .header-stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .stat-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        background: #252b38;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+      }
+
+      .stat-chip.pts {
+        color: #fbbf24;
+      }
+
+      .btn-header-action {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-muted);
+        padding: 4px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .btn-header-action:hover {
+        background: #272d3b;
+        color: #fff;
+      }
+
+      /* Main Workspace: CSS Grid Layout */
+      main.ide-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        height: calc(100vh - 48px);
+        overflow: hidden;
+      }
+
+      /* Left Sidebar: Mastery & Navigation */
+      aside.ide-sidebar {
+        background-color: var(--bg-sidebar);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .sidebar-section-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-dim);
+        font-weight: 700;
+        padding: 12px 16px 6px;
+      }
+
+      .mastery-card {
+        padding: 12px 16px;
+        background-color: #1f232c;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .mastery-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      .mastery-label {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+
+      .mastery-value {
+        font-weight: 700;
+        color: var(--accent-emerald);
+      }
+
+      .progress-bar-bg {
+        width: 100%;
+        height: 8px;
+        background-color: #13151a;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #2a2f3c;
+      }
+
+      .progress-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #10b981, #06b6d4);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+
+      .curriculum-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .challenge-card {
+        background: #20242e;
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.15s ease;
+        text-align: left;
+      }
+
+      .challenge-card:hover {
+        background: #272d3b;
+        border-color: #40495c;
+      }
+
+      .challenge-card.active {
+        background: #242c3d;
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 0 1px var(--accent-blue);
+      }
+
+      .challenge-card.passed {
+        border-left: 3px solid var(--accent-emerald);
+      }
+
+      .challenge-card.skipped {
+        border-left: 3px solid var(--accent-amber);
+      }
+
+      .challenge-card.pending {
+        border-left: 3px solid #4b5563;
+      }
+
+      .status-icon-wrapper {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+
+      .status-icon-wrapper.passed {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: var(--accent-emerald);
+        border: 1px solid var(--accent-emerald);
+      }
+
+      .status-icon-wrapper.skipped {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: var(--accent-amber);
+        border: 1px solid var(--accent-amber);
+      }
+
+      .status-icon-wrapper.active {
+        background-color: rgba(59, 130, 246, 0.2);
+        color: var(--accent-blue);
+        border: 1px solid var(--accent-blue);
+      }
+
+      .status-icon-wrapper.pending {
+        background-color: #2b303c;
+        color: #64748b;
+        border: 1px solid #3c4354;
+      }
+
+      .challenge-details {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .challenge-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 2px;
+      }
+
+      .challenge-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f1f5f9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .challenge-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--text-dim);
+      }
+
+      .level-tag {
+        background: #181c24;
+        padding: 1px 6px;
+        border-radius: 4px;
+        color: #94a3b8;
+        font-weight: 500;
+      }
+
+      .pts-tag {
+        color: #eab308;
+        font-weight: 600;
+      }
+
+      .sidebar-footer {
+        padding: 12px;
+        border-top: 1px solid var(--border-color);
+        background: #16181e;
+        display: flex;
+        gap: 8px;
+      }
+
+      .btn-footer {
+        flex: 1;
+        padding: 6px 10px;
+        font-size: 12px;
+        border-radius: 5px;
+        background: #232834;
+        color: #cbd5e1;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.15s;
+        text-align: center;
+      }
+      .btn-footer:hover {
+        background: #2f3647;
+      }
+
+      /* Right Pane Area: 3 vertical sections via CSS Grid */
+      section.ide-workspace {
+        display: grid;
+        grid-template-rows: minmax(180px, auto) 1fr minmax(220px, 1fr);
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--bg-main);
+      }
+
+      /* Top Right Pane: Context & Schema */
+      .context-pane {
+        background-color: var(--bg-panel);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        max-height: 260px;
+      }
+
+      .pane-header-strip {
+        background-color: #1b1e26;
+        border-bottom: 1px solid var(--border-color);
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+
+      .pane-title-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .difficulty-badge {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .difficulty-badge.level-1 {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.4);
+      }
+      .difficulty-badge.level-2 {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+      }
+      .difficulty-badge.level-3 {
+        background: rgba(139, 92, 246, 0.2);
+        color: #c084fc;
+        border: 1px solid rgba(139, 92, 246, 0.4);
+      }
+
+      .context-content {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .prompt-box {
+        background-color: #242935;
+        border-left: 3px solid var(--accent-blue);
+        border-radius: 0 6px 6px 0;
+        padding: 10px 14px;
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: #e2e8f0;
+      }
+
+      .prompt-box strong {
+        color: #fff;
+      }
+
+      .schema-container {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .schema-label-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-dim);
+      }
+
+      .schema-tables-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .schema-table-card {
+        background: #1b1e26;
+        border: 1px solid #333a4a;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: "Fira Code", Consolas, monospace;
+        font-size: 12px;
+        min-width: 220px;
+        flex: 1;
+      }
+
+      .schema-table-name {
+        color: #38bdf8;
+        font-weight: 700;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-bottom: 1px solid #2d3442;
+        padding-bottom: 4px;
+      }
+
+      .schema-columns-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        color: #cbd5e1;
+      }
+
+      .schema-column-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .col-type {
+        color: #94a3b8;
+        font-size: 11px;
+      }
+
+      /* Middle Right Pane: Workspace & Editor */
+      .editor-pane {
+        background-color: var(--bg-code);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .editor-header-bar {
+        height: 36px;
+        background-color: #1e222a;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        font-size: 12px;
+      }
+
+      .editor-tab {
+        background-color: var(--bg-code);
+        border: 1px solid var(--border-color);
+        border-bottom: none;
+        padding: 6px 14px;
+        border-radius: 4px 4px 0 0;
+        font-family: "Fira Code", monospace;
+        color: #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .editor-shortcuts-hint {
+        color: var(--text-dim);
+        font-size: 11px;
+      }
+
+      .editor-mount {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        min-height: 120px;
+        position: relative;
+      }
+
+      #monaco-container {
+        width: 100%;
+        height: 100%;
+      }
+
+      #fallback-editor {
+        width: 100%;
+        height: 100%;
+        background-color: #121316;
+        color: #f8fafc;
+        border: none;
+        outline: none;
+        resize: none;
+        padding: 12px 16px;
+        font-family: "Fira Code", Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        tab-size: 2;
+        display: none;
+      }
+
+      /* Editor Actions Bar */
+      .editor-actions-bar {
+        height: 44px;
+        background-color: #1b1e25;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        flex-shrink: 0;
+      }
+
+      .action-buttons-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 12.5px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .btn-run {
+        background-color: var(--accent-emerald);
+        color: #064e3b;
+      }
+      .btn-run:hover {
+        background-color: #34d399;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+      }
+
+      .btn-skip {
+        background-color: #2b3140;
+        color: var(--accent-amber);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+      }
+      .btn-skip:hover {
+        background-color: #373e52;
+        color: #fbbf24;
+      }
+
+      .btn-secondary {
+        background-color: #252a36;
+        color: var(--text-muted);
+        border: 1px solid var(--border-color);
+      }
+      .btn-secondary:hover {
+        background-color: #313747;
+        color: #fff;
+      }
+
+      /* Bottom Right Pane: Results (Data Grid & Console) */
+      .results-pane {
+        background-color: var(--bg-panel);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .results-tabs-bar {
+        height: 36px;
+        background-color: #181b22;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+      }
+
+      .tabs-list {
+        display: flex;
+        gap: 4px;
+      }
+
+      .tab-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .tab-btn:hover {
+        color: #fff;
+        background-color: #232833;
+      }
+
+      .tab-btn.active {
+        color: #fff;
+        background-color: #2b3242;
+        font-weight: 600;
+      }
+
+      .tab-badge {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 10px;
+        background: #1e222d;
+      }
+
+      .tab-badge.success {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+      }
+      .tab-badge.error {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+      }
+
+      .results-body {
+        flex: 1;
+        overflow: auto;
+        position: relative;
+        background-color: #121316;
+      }
+
+      .tab-panel {
+        display: none;
+        height: 100%;
+        overflow: auto;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      /* Data Grid Table */
+      .data-table-container {
+        width: 100%;
+        min-height: 100%;
+      }
+
+      table.data-grid {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: "Fira Code", Consolas, monospace;
+        font-size: 12px;
+        text-align: left;
+      }
+
+      table.data-grid th {
+        background-color: #1d212b;
+        color: #94a3b8;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-color);
+        border-right: 1px solid #2a303f;
+        position: sticky;
+        top: 0;
+        font-weight: 600;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      table.data-grid th.col-index {
+        width: 40px;
+        text-align: center;
+        color: var(--text-dim);
+      }
+
+      table.data-grid td {
+        padding: 6px 12px;
+        border-bottom: 1px solid #1f232c;
+        border-right: 1px solid #1a1e27;
+        color: #e2e8f0;
+        white-space: nowrap;
+      }
+
+      table.data-grid td.col-index {
+        background-color: #16181f;
+        text-align: center;
+        color: var(--text-dim);
+        user-select: none;
+      }
+
+      table.data-grid tr:nth-child(even) td:not(.col-index) {
+        background-color: #15171d;
+      }
+
+      table.data-grid tr:hover td:not(.col-index) {
+        background-color: #202633;
+      }
+
+      .null-value {
+        color: #64748b;
+        font-style: italic;
+      }
+
+      /* Console View */
+      .console-output-box {
+        padding: 12px 16px;
+        font-family: "Fira Code", Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.6;
+        min-height: 100%;
+      }
+
+      .console-entry {
+        margin-bottom: 8px;
+        word-break: break-all;
+      }
+
+      .console-error {
+        color: #f87171;
+        background: rgba(239, 68, 68, 0.08);
+        border-left: 3px solid #ef4444;
+        padding: 8px 12px;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .console-success {
+        color: #4ade80;
+        background: rgba(34, 197, 94, 0.08);
+        border-left: 3px solid #22c55e;
+        padding: 8px 12px;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .console-warning {
+        color: #fbbf24;
+        background: rgba(245, 158, 11, 0.08);
+        border-left: 3px solid #f59e0b;
+        padding: 8px 12px;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .console-info {
+        color: #94a3b8;
+      }
+
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-dim);
+        font-size: 13px;
+        gap: 8px;
+        padding: 30px;
+        text-align: center;
+      }
+
+      /* Hint Modal / Popover */
+      .hint-card {
+        margin-top: 8px;
+        background: #181d26;
+        border: 1px dashed #3a4459;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #cbd5e1;
+        display: none;
+      }
+
+      /* Toast Notification */
+      #toast-notification {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        padding: 12px 18px;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        color: #fff;
+        font-size: 13px;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        z-index: 1000;
+        animation: slideIn 0.2s ease-out;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateY(12px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-icon">SQL</div>
+        <span>SQL Learning Studio</span>
+        <span style="color: var(--text-dim); font-weight: 400;">|</span>
+        <span style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Client-Side Interactive IDE</span>
+      </div>
+
+      <div class="header-meta">
+        <div class="db-status-pill">
+          <div class="status-dot" id="engine-dot"></div>
+          <span id="engine-status-text">SQLite (WASM) Connected</span>
+        </div>
+
+        <div class="header-stats">
+          <div class="stat-chip pts">
+            <span>Score:</span>
+            <span id="header-score">0</span>
+            <span style="font-size: 10px; color: #f59e0b;">PTS</span>
+          </div>
+          <button class="btn-header-action" id="btn-seed-peek" title="View initial seeded tables">
+            Peek Raw DB
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main IDE Workspace Grid -->
+    <main class="ide-layout">
+      <!-- Left Sidebar: Mastery & Navigation -->
+      <aside class="ide-sidebar">
+        <div class="mastery-card">
+          <div class="mastery-info-row">
+            <span class="mastery-label">Overall Mastery</span>
+            <span class="mastery-value" id="mastery-pct">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="mastery-progress-bar"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 6px;">
+            <span id="mastery-count-text">0 / 6 Challenges Completed</span>
+            <span id="rank-badge" style="color: #60a5fa; font-weight: 600;">Apprentice</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section-title">Challenges Curriculum</div>
+
+        <div class="curriculum-list" id="challenges-list">
+          <!-- Dynamically populated challenge list -->
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="btn-footer" id="btn-reset-current" title="Reset current challenge SQL and database">Reset Query</button>
+          <button class="btn-footer" id="btn-reset-all" title="Clear all local scores and progress">Reset All</button>
+        </div>
+      </aside>
+
+      <!-- Right Workspace Area: 3 vertical sections -->
+      <section class="ide-workspace">
+        <!-- Top Right Pane: Context & Schema -->
+        <div class="context-pane">
+          <div class="pane-header-strip">
+            <div class="pane-title-badge">
+              <span id="current-challenge-title">Loading Challenge...</span>
+              <span class="difficulty-badge level-1" id="current-difficulty-badge">Level 1</span>
+            </div>
+            <div style="color: #fbbf24; font-weight: 600; font-size: 12px;" id="current-points-badge">+50 Points</div>
+          </div>
+
+          <div class="context-content">
+            <div class="prompt-box" id="current-prompt-box">
+              Select all records...
+            </div>
+
+            <div class="schema-container">
+              <div class="schema-label-bar">
+                <span>Active Table Schemas (In-Memory Database)</span>
+              </div>
+              <div class="schema-tables-grid" id="schema-grid">
+                <!-- Dynamically populated schema cards -->
+              </div>
+            </div>
+
+            <div class="hint-card" id="hint-box">
+              <!-- Dynamically populated hints -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle Right Pane: Workspace & Editor -->
+        <div class="editor-pane">
+          <div class="editor-header-bar">
+            <div class="editor-tab">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+              </svg>
+              <span>query.sql</span>
+            </div>
+            <div class="editor-shortcuts-hint">
+              Press <kbd style="background: #2b3140; padding: 2px 5px; border-radius: 3px; color: #cbd5e1;">Ctrl+Enter</kbd> to execute
+            </div>
+          </div>
+
+          <div class="editor-mount">
+            <div id="monaco-container"></div>
+            <textarea id="fallback-editor" spellcheck="false" placeholder="-- Type your SQL query here..."></textarea>
+          </div>
+
+          <div class="editor-actions-bar">
+            <div class="action-buttons-group">
+              <button class="btn btn-run" id="btn-run-query">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Run Query</span>
+              </button>
+
+              <button class="btn btn-skip" id="btn-skip-query">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                  <line x1="19" y1="5" x2="19" y2="19"></line>
+                </svg>
+                <span>Skip for Now</span>
+              </button>
+
+              <button class="btn btn-secondary" id="btn-toggle-hint">
+                <span>Hint</span>
+              </button>
+            </div>
+
+            <div class="action-buttons-group">
+              <button class="btn btn-secondary" id="btn-format-query" title="Format SQL keywords">
+                <span>Format SQL</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Right Pane: Results (Data Grid & Console) -->
+        <div class="results-pane">
+          <div class="results-tabs-bar">
+            <div class="tabs-list">
+              <button class="tab-btn active" data-tab="tab-grid" id="btn-tab-grid">
+                <span>Data Grid</span>
+                <span class="tab-badge" id="badge-row-count">0 rows</span>
+              </button>
+              <button class="tab-btn" data-tab="tab-expected" id="btn-tab-expected">
+                <span>Expected Output</span>
+              </button>
+              <button class="tab-btn" data-tab="tab-console" id="btn-tab-console">
+                <span>Console</span>
+                <span class="tab-badge" id="badge-console-status">Ready</span>
+              </button>
+            </div>
+
+            <div style="font-size: 11px; color: var(--text-dim);" id="execution-time-label">
+              Engine: sql.js WebAssembly
+            </div>
+          </div>
+
+          <div class="results-body">
+            <!-- Tab 1: Data Grid -->
+            <div class="tab-panel active" id="tab-grid">
+              <div class="empty-state" id="grid-empty-state">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 3h18v18H3z"></path>
+                  <path d="M3 9h18"></path>
+                  <path d="M9 21V9"></path>
+                </svg>
+                <span>Write your SQL query above and click "Run Query" (or Ctrl+Enter) to preview results.</span>
+              </div>
+              <div class="data-table-container" id="grid-table-container" style="display: none;">
+                <!-- Dynamically rendered HTML Table -->
+              </div>
+            </div>
+
+            <!-- Tab 2: Expected Output -->
+            <div class="tab-panel" id="tab-expected">
+              <div class="data-table-container" id="expected-table-container">
+                <!-- Dynamically rendered Expected Table -->
+              </div>
+            </div>
+
+            <!-- Tab 3: Console -->
+            <div class="tab-panel" id="tab-console">
+              <div class="console-output-box" id="console-logs">
+                <div class="console-entry console-info">
+                  SQLite WebAssembly engine initialized. Ready to execute queries.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast-notification"></div>
+
+    <!-- CDNs: sql.js & Monaco Editor AMD loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+    <!-- Core Application Logic -->
+    <script>
+      (function () {
+        'use strict';
+
+        // --- Question Bank (Levels 1 to 3) ---
+        const QUESTIONS = [
+          {
+            id: 'q1_select_customers',
+            level: 1,
+            levelName: 'Level 1: Basic SELECT',
+            difficulty_points: 50,
+            title: 'Customer Directory',
+            prompt: 'Retrieve the first name, last name, and email of all customers from the <code>customers</code> table. Order the output alphabetically by <code>last_name</code> in ascending order (ASC).',
+            tables: [
+              {
+                name: 'customers',
+                columns: [
+                  { name: 'customer_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'first_name', type: 'TEXT' },
+                  { name: 'last_name', type: 'TEXT' },
+                  { name: 'email', type: 'TEXT' },
+                  { name: 'city', type: 'TEXT' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS customers;
+              CREATE TABLE customers (
+                customer_id INTEGER PRIMARY KEY,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                city TEXT NOT NULL
+              );
+              INSERT INTO customers VALUES
+              (1, 'Alice', 'Smith', 'alice.smith@example.com', 'Seattle'),
+              (2, 'Bob', 'Jones', 'bob.jones@example.com', 'Portland'),
+              (3, 'Charlie', 'Brown', 'charlie.b@example.com', 'Seattle'),
+              (4, 'Diana', 'Prince', 'diana.p@example.com', 'San Francisco'),
+              (5, 'Evan', 'Wright', 'evan.w@example.com', 'Chicago');
+            `,
+            starterSQL: `-- Write your SQL query below\nSELECT first_name, last_name, email\nFROM customers\nORDER BY last_name ASC;`,
+            solutionSQL: `SELECT first_name, last_name, email FROM customers ORDER BY last_name ASC;`,
+            hint: `Use SELECT first_name, last_name, email FROM customers ORDER BY last_name ASC;`,
+            expectedResult: {
+              columns: ['first_name', 'last_name', 'email'],
+              values: [
+                ['Charlie', 'Brown', 'charlie.b@example.com'],
+                ['Bob', 'Jones', 'bob.jones@example.com'],
+                ['Diana', 'Prince', 'diana.p@example.com'],
+                ['Alice', 'Smith', 'alice.smith@example.com'],
+                ['Evan', 'Wright', 'evan.w@example.com']
+              ]
+            }
+          },
+          {
+            id: 'q2_math_alias_products',
+            level: 1,
+            levelName: 'Level 1: Arithmetic & Aliasing',
+            difficulty_points: 75,
+            title: 'Inventory Valuation',
+            prompt: 'The warehouse team needs an inventory evaluation. Select the <code>product_name</code>, <code>unit_price</code>, <code>stock_quantity</code>, and calculate the total stock value as <code>total_value</code> (which is <code>unit_price * stock_quantity</code>) from the <code>products</code> table. Order the output by <code>total_value</code> descending.',
+            tables: [
+              {
+                name: 'products',
+                columns: [
+                  { name: 'product_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'product_name', type: 'TEXT' },
+                  { name: 'category', type: 'TEXT' },
+                  { name: 'unit_price', type: 'REAL' },
+                  { name: 'stock_quantity', type: 'INTEGER' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS products;
+              CREATE TABLE products (
+                product_id INTEGER PRIMARY KEY,
+                product_name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                unit_price REAL NOT NULL,
+                stock_quantity INTEGER NOT NULL
+              );
+              INSERT INTO products VALUES
+              (101, 'Mechanical Keyboard', 'Hardware', 89.99, 15),
+              (102, 'Wireless Mouse', 'Hardware', 29.50, 40),
+              (103, 'Ultra-wide Monitor', 'Hardware', 349.00, 8),
+              (104, 'Noise Canceling Headphones', 'Audio', 199.95, 12),
+              (105, 'USB-C Docking Station', 'Hardware', 75.00, 20);
+            `,
+            starterSQL: `-- Calculate unit_price * stock_quantity as total_value\nSELECT product_name, unit_price, stock_quantity, (unit_price * stock_quantity) AS total_value\nFROM products\nORDER BY total_value DESC;`,
+            solutionSQL: `SELECT product_name, unit_price, stock_quantity, (unit_price * stock_quantity) AS total_value FROM products ORDER BY total_value DESC;`,
+            hint: `Multiply (unit_price * stock_quantity) AS total_value and finish with ORDER BY total_value DESC`,
+            expectedResult: {
+              columns: ['product_name', 'unit_price', 'stock_quantity', 'total_value'],
+              values: [
+                ['Ultra-wide Monitor', 349.00, 8, 2792.00],
+                ['Noise Canceling Headphones', 199.95, 12, 2399.40],
+                ['USB-C Docking Station', 75.00, 20, 1500.00],
+                ['Mechanical Keyboard', 89.99, 15, 1349.85],
+                ['Wireless Mouse', 29.50, 40, 1180.00]
+              ]
+            }
+          },
+          {
+            id: 'q3_where_like_employees',
+            level: 2,
+            levelName: 'Level 2: WHERE & LIKE Filtering',
+            difficulty_points: 100,
+            title: 'Department & Email Search',
+            prompt: 'Find all employees who work in the <code>\'Engineering\'</code> department AND have an internal company email ending with <code>\'@cyberdyne.com\'</code>. Return their <code>full_name</code>, <code>department</code>, and <code>email</code>, sorted alphabetically by <code>full_name</code>.',
+            tables: [
+              {
+                name: 'employees',
+                columns: [
+                  { name: 'emp_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'full_name', type: 'TEXT' },
+                  { name: 'department', type: 'TEXT' },
+                  { name: 'email', type: 'TEXT' },
+                  { name: 'salary', type: 'INTEGER' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS employees;
+              CREATE TABLE employees (
+                emp_id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                department TEXT NOT NULL,
+                email TEXT NOT NULL,
+                salary INTEGER NOT NULL
+              );
+              INSERT INTO employees VALUES
+              (1, 'Sarah Connor', 'Engineering', 's.connor@cyberdyne.com', 95000),
+              (2, 'John Miller', 'Engineering', 'j.miller@contractor.net', 82000),
+              (3, 'Elena Rostova', 'Marketing', 'e.rostova@cyberdyne.com', 71000),
+              (4, 'Marcus Wright', 'Engineering', 'm.wright@cyberdyne.com', 88000),
+              (5, 'Kyle Reese', 'Security', 'k.reese@cyberdyne.com', 67000),
+              (6, 'Tanya Vance', 'Engineering', 't.vance@external-corp.org', 91000);
+            `,
+            starterSQL: `-- Use WHERE with AND and the LIKE operator '%@cyberdyne.com'\nSELECT full_name, department, email\nFROM employees\nWHERE department = 'Engineering' AND email LIKE '%@cyberdyne.com'\nORDER BY full_name ASC;`,
+            solutionSQL: `SELECT full_name, department, email FROM employees WHERE department = 'Engineering' AND email LIKE '%@cyberdyne.com' ORDER BY full_name ASC;`,
+            hint: `WHERE department = 'Engineering' AND email LIKE '%@cyberdyne.com' ORDER BY full_name ASC`,
+            expectedResult: {
+              columns: ['full_name', 'department', 'email'],
+              values: [
+                ['Marcus Wright', 'Engineering', 'm.wright@cyberdyne.com'],
+                ['Sarah Connor', 'Engineering', 's.connor@cyberdyne.com']
+              ]
+            }
+          },
+          {
+            id: 'q4_range_orders',
+            level: 2,
+            levelName: 'Level 2: Range & Status Conditions',
+            difficulty_points: 125,
+            title: 'High-Value Pending Orders',
+            prompt: 'Auditors need to inspect unfulfilled orders within a specific threshold. Retrieve <code>order_id</code>, <code>customer_name</code>, and <code>order_total</code> from the <code>orders</code> table for all orders where <code>status</code> is <code>\'Pending\'</code> and <code>order_total</code> is between 200.00 and 600.00 inclusive. Sort by <code>order_total</code> descending.',
+            tables: [
+              {
+                name: 'orders',
+                columns: [
+                  { name: 'order_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'customer_name', type: 'TEXT' },
+                  { name: 'order_total', type: 'REAL' },
+                  { name: 'status', type: 'TEXT' },
+                  { name: 'order_date', type: 'TEXT' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS orders;
+              CREATE TABLE orders (
+                order_id INTEGER PRIMARY KEY,
+                customer_name TEXT NOT NULL,
+                order_total REAL NOT NULL,
+                status TEXT NOT NULL,
+                order_date TEXT NOT NULL
+              );
+              INSERT INTO orders VALUES
+              (501, 'Apex Industries', 450.00, 'Pending', '2026-03-01'),
+              (502, 'BioTech Labs', 120.50, 'Completed', '2026-03-02'),
+              (503, 'CyberCloud Inc', 890.00, 'Pending', '2026-03-03'),
+              (504, 'DataCore Systems', 245.00, 'Pending', '2026-03-04'),
+              (505, 'Echo Dynamics', 50.00, 'Pending', '2026-03-05'),
+              (506, 'FutureTech', 310.25, 'Cancelled', '2026-03-06');
+            `,
+            starterSQL: `-- Filter by status and BETWEEN range\nSELECT order_id, customer_name, order_total\nFROM orders\nWHERE status = 'Pending' AND order_total BETWEEN 200.00 AND 600.00\nORDER BY order_total DESC;`,
+            solutionSQL: `SELECT order_id, customer_name, order_total FROM orders WHERE status = 'Pending' AND order_total BETWEEN 200.00 AND 600.00 ORDER BY order_total DESC;`,
+            hint: `Use: WHERE status = 'Pending' AND order_total BETWEEN 200.00 AND 600.00 ORDER BY order_total DESC;`,
+            expectedResult: {
+              columns: ['order_id', 'customer_name', 'order_total'],
+              values: [
+                [501, 'Apex Industries', 450.00],
+                [504, 'DataCore Systems', 245.00]
+              ]
+            }
+          },
+          {
+            id: 'q5_group_by_payroll',
+            level: 3,
+            levelName: 'Level 3: Aggregations & GROUP BY',
+            difficulty_points: 150,
+            title: 'Department Payroll Analytics',
+            prompt: 'Group the <code>staff</code> table by <code>department</code>. For each department, return the <code>department</code> name, the count of staff as <code>headcount</code>, and the average salary as <code>avg_salary</code> (rounded to 2 decimal places using <code>ROUND(AVG(salary), 2)</code>). Filter out any departments that have 2 or fewer employees using <code>HAVING COUNT(*) > 2</code>. Order the results by <code>avg_salary</code> descending.',
+            tables: [
+              {
+                name: 'staff',
+                columns: [
+                  { name: 'staff_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'full_name', type: 'TEXT' },
+                  { name: 'department', type: 'TEXT' },
+                  { name: 'salary', type: 'REAL' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS staff;
+              CREATE TABLE staff (
+                staff_id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                department TEXT NOT NULL,
+                salary REAL NOT NULL
+              );
+              INSERT INTO staff VALUES
+              (1, 'Devon Hayes', 'Development', 95000.00),
+              (2, 'Amara Okafor', 'Development', 105000.00),
+              (3, 'Leo Sterling', 'Development', 88000.00),
+              (4, 'Rachel Green', 'Sales', 62000.00),
+              (5, 'Carlos Gomez', 'Sales', 68000.00),
+              (6, 'Priya Patel', 'HR', 72000.00),
+              (7, 'Fiona Campbell', 'Support', 54000.00),
+              (8, 'Liam Chen', 'Support', 56000.00),
+              (9, 'Maya Lin', 'Support', 58000.00);
+            `,
+            starterSQL: `-- Group by department and aggregate with COUNT and AVG\nSELECT department, COUNT(*) AS headcount, ROUND(AVG(salary), 2) AS avg_salary\nFROM staff\nGROUP BY department\nHAVING COUNT(*) > 2\nORDER BY avg_salary DESC;`,
+            solutionSQL: `SELECT department, COUNT(*) AS headcount, ROUND(AVG(salary), 2) AS avg_salary FROM staff GROUP BY department HAVING COUNT(*) > 2 ORDER BY avg_salary DESC;`,
+            hint: `Use GROUP BY department HAVING COUNT(*) > 2 ORDER BY avg_salary DESC`,
+            expectedResult: {
+              columns: ['department', 'headcount', 'avg_salary'],
+              values: [
+                ['Development', 3, 96000.00],
+                ['Support', 3, 56000.00]
+              ]
+            }
+          },
+          {
+            id: 'q6_inner_join_books',
+            level: 3,
+            levelName: 'Level 3: Multi-Table JOIN',
+            difficulty_points: 200,
+            title: 'Author & Books Catalog',
+            prompt: 'Perform an <code>INNER JOIN</code> between the <code>books</code> and <code>authors</code> tables on matching author IDs. Return the author\'s name as <code>author_name</code>, the book <code>title</code>, and <code>price</code>. Filter for books where <code>price</code> is greater than or equal to 19.00. Order by <code>price</code> in descending order.',
+            tables: [
+              {
+                name: 'authors',
+                columns: [
+                  { name: 'author_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'author_name', type: 'TEXT' },
+                  { name: 'country', type: 'TEXT' }
+                ]
+              },
+              {
+                name: 'books',
+                columns: [
+                  { name: 'book_id', type: 'INTEGER PRIMARY KEY' },
+                  { name: 'author_id', type: 'INTEGER FOREIGN KEY' },
+                  { name: 'title', type: 'TEXT' },
+                  { name: 'genre', type: 'TEXT' },
+                  { name: 'price', type: 'REAL' }
+                ]
+              }
+            ],
+            setupSQL: `
+              DROP TABLE IF EXISTS books;
+              DROP TABLE IF EXISTS authors;
+              CREATE TABLE authors (
+                author_id INTEGER PRIMARY KEY,
+                author_name TEXT NOT NULL,
+                country TEXT NOT NULL
+              );
+              CREATE TABLE books (
+                book_id INTEGER PRIMARY KEY,
+                author_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                genre TEXT NOT NULL,
+                price REAL NOT NULL
+              );
+              INSERT INTO authors VALUES
+              (1, 'Frank Herbert', 'USA'),
+              (2, 'Ursula K. Le Guin', 'USA'),
+              (3, 'Arthur C. Clarke', 'UK'),
+              (4, 'Stanislaw Lem', 'Poland');
+              INSERT INTO books VALUES
+              (1001, 1, 'Dune', 'Sci-Fi', 24.99),
+              (1002, 1, 'Dune Messiah', 'Sci-Fi', 18.50),
+              (1003, 2, 'The Left Hand of Darkness', 'Sci-Fi', 16.95),
+              (1004, 2, 'The Dispossessed', 'Sci-Fi', 19.99),
+              (1005, 3, '2001: A Space Odyssey', 'Sci-Fi', 21.00),
+              (1006, 3, 'Rendezvous with Rama', 'Sci-Fi', 14.50);
+            `,
+            starterSQL: `-- Join books and authors on matching author_id\nSELECT authors.author_name, books.title, books.price\nFROM books\nINNER JOIN authors ON books.author_id = authors.author_id\nWHERE books.price >= 19.00\nORDER BY books.price DESC;`,
+            solutionSQL: `SELECT authors.author_name, books.title, books.price FROM books INNER JOIN authors ON books.author_id = authors.author_id WHERE books.price >= 19.00 ORDER BY books.price DESC;`,
+            hint: `FROM books INNER JOIN authors ON books.author_id = authors.author_id WHERE books.price >= 19.00 ORDER BY books.price DESC`,
+            expectedResult: {
+              columns: ['author_name', 'title', 'price'],
+              values: [
+                ['Frank Herbert', 'Dune', 24.99],
+                ['Arthur C. Clarke', '2001: A Space Odyssey', 21.00],
+                ['Ursula K. Le Guin', 'The Dispossessed', 19.99]
+              ]
+            }
+          }
+        ];
+
+        // --- App State & LocalStorage Manager ---
+        const STORAGE_KEY = 'sql_studio_progress_v1';
+
+        function loadStorageState() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              return JSON.parse(raw);
+            }
+          } catch (e) {
+            console.warn('Could not read localStorage:', e);
+          }
+          return {
+            completedIds: [],
+            skippedIds: [],
+            score: 0,
+            currentId: QUESTIONS[0].id,
+            savedQueries: {}
+          };
+        }
+
+        function saveStorageState(state) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          } catch (e) {
+            console.warn('Could not write localStorage:', e);
+          }
+        }
+
+        let appState = loadStorageState();
+
+        // --- In-Memory SQLite Engine (sql.js) ---
+        let SQLInstance = null;
+        let activeDB = null;
+
+        // --- Monaco Editor Instance ---
+        let monacoEditor = null;
+        const fallbackEditor = document.getElementById('fallback-editor');
+        const monacoContainer = document.getElementById('monaco-container');
+
+        // Helper to get current SQL from editor
+        function getEditorQuery() {
+          if (monacoEditor) {
+            return monacoEditor.getValue();
+          }
+          return fallbackEditor.value;
+        }
+
+        // Helper to set SQL in editor
+        function setEditorQuery(text) {
+          if (monacoEditor) {
+            monacoEditor.setValue(text);
+          }
+          fallbackEditor.value = text;
+        }
+
+        // --- Toast Utility ---
+        const toastEl = document.getElementById('toast-notification');
+        let toastTimeout = null;
+        function showToast(message, isSuccess = true) {
+          if (toastTimeout) clearTimeout(toastTimeout);
+          toastEl.textContent = message;
+          toastEl.style.display = 'flex';
+          toastEl.style.borderColor = isSuccess ? '#10b981' : '#f59e0b';
+          toastTimeout = setTimeout(() => {
+            toastEl.style.display = 'none';
+          }, 3500);
+        }
+
+        // --- Console Logger Utility ---
+        const consoleLogsEl = document.getElementById('console-logs');
+        const badgeConsoleStatus = document.getElementById('badge-console-status');
+
+        function appendConsole(message, type = 'info') {
+          const div = document.createElement('div');
+          div.className = `console-entry console-${type}`;
+          const time = new Date().toLocaleTimeString();
+          div.innerHTML = `<span style="color: #64748b; font-size: 11px;">[${time}]</span> ${escapeHtml(message)}`;
+          consoleLogsEl.appendChild(div);
+          consoleLogsEl.scrollTop = consoleLogsEl.scrollHeight;
+
+          if (type === 'error') {
+            badgeConsoleStatus.textContent = 'Error';
+            badgeConsoleStatus.className = 'tab-badge error';
+          } else if (type === 'success') {
+            badgeConsoleStatus.textContent = 'Success';
+            badgeConsoleStatus.className = 'tab-badge success';
+          }
+        }
+
+        function clearConsole() {
+          consoleLogsEl.innerHTML = '';
+          badgeConsoleStatus.textContent = 'Ready';
+          badgeConsoleStatus.className = 'tab-badge';
+        }
+
+        function escapeHtml(str) {
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        }
+
+        // --- Current Question Resolver ---
+        function getCurrentQuestion() {
+          const found = QUESTIONS.find(q => q.id === appState.currentId);
+          return found || QUESTIONS[0];
+        }
+
+        // --- Initialize Database for Question ---
+        function resetDatabaseForCurrentQuestion() {
+          if (!SQLInstance) return;
+          const q = getCurrentQuestion();
+          try {
+            if (activeDB) {
+              activeDB.close();
+            }
+            activeDB = new SQLInstance.Database();
+            activeDB.run(q.setupSQL);
+            appendConsole(`Database seeded for "${q.title}" with required tables.`, 'info');
+          } catch (err) {
+            appendConsole(`Database setup error: ${err.message}`, 'error');
+          }
+        }
+
+        // --- Render UI Elements ---
+        function renderSidebar() {
+          const listEl = document.getElementById('challenges-list');
+          listEl.innerHTML = '';
+
+          const totalCount = QUESTIONS.length;
+          const completedCount = appState.completedIds.length;
+          const pct = Math.round((completedCount / totalCount) * 100);
+
+          document.getElementById('mastery-pct').textContent = `${pct}%`;
+          document.getElementById('mastery-progress-bar').style.width = `${pct}%`;
+          document.getElementById('mastery-count-text').textContent = `${completedCount} / ${totalCount} Challenges Completed`;
+          document.getElementById('header-score').textContent = appState.score;
+
+          // Rank label
+          const rankEl = document.getElementById('rank-badge');
+          if (completedCount === totalCount) {
+            rankEl.textContent = 'SQL Grandmaster 👑';
+            rankEl.style.color = '#34d399';
+          } else if (completedCount >= 4) {
+            rankEl.textContent = 'Query Artisan ⚡';
+            rankEl.style.color = '#c084fc';
+          } else if (completedCount >= 2) {
+            rankEl.textContent = 'Data Practitioner 🛠️';
+            rankEl.style.color = '#60a5fa';
+          } else {
+            rankEl.textContent = 'Apprentice 🌱';
+            rankEl.style.color = '#94a3b8';
+          }
+
+          QUESTIONS.forEach(q => {
+            const isCompleted = appState.completedIds.includes(q.id);
+            const isSkipped = appState.skippedIds.includes(q.id);
+            const isActive = q.id === appState.currentId;
+
+            let statusClass = 'pending';
+            let iconMarkup = '•';
+
+            if (isCompleted) {
+              statusClass = 'passed';
+              iconMarkup = '✓';
+            } else if (isActive) {
+              statusClass = 'active';
+              iconMarkup = '▶';
+            } else if (isSkipped) {
+              statusClass = 'skipped';
+              iconMarkup = '↷';
+            }
+
+            const card = document.createElement('div');
+            card.className = `challenge-card ${statusClass} ${isActive ? 'active' : ''}`;
+            card.onclick = () => selectQuestion(q.id);
+
+            card.innerHTML = `
+              <div class="status-icon-wrapper ${statusClass}">${iconMarkup}</div>
+              <div class="challenge-details">
+                <div class="challenge-title-row">
+                  <span class="challenge-name">${escapeHtml(q.title)}</span>
+                  <span class="pts-tag">+${q.difficulty_points}</span>
+                </div>
+                <div class="challenge-meta-row">
+                  <span class="level-tag">L${q.level}</span>
+                  <span>${escapeHtml(q.levelName.split(':')[1] || '')}</span>
+                </div>
+              </div>
+            `;
+            listEl.appendChild(card);
+          });
+        }
+
+        function renderContextPane() {
+          const q = getCurrentQuestion();
+          document.getElementById('current-challenge-title').textContent = q.title;
+
+          const diffBadge = document.getElementById('current-difficulty-badge');
+          diffBadge.textContent = `Level ${q.level}`;
+          diffBadge.className = `difficulty-badge level-${q.level}`;
+
+          document.getElementById('current-points-badge').textContent = `+${q.difficulty_points} Points`;
+          document.getElementById('current-prompt-box').innerHTML = q.prompt;
+
+          // Render schema cards
+          const schemaGrid = document.getElementById('schema-grid');
+          schemaGrid.innerHTML = '';
+          q.tables.forEach(tbl => {
+            const card = document.createElement('div');
+            card.className = 'schema-table-card';
+            let colsHtml = '';
+            tbl.columns.forEach(col => {
+              colsHtml += `
+                <div class="schema-column-item">
+                  <span style="color: #f1f5f9;">${escapeHtml(col.name)}</span>
+                  <span class="col-type">${escapeHtml(col.type)}</span>
+                </div>
+              `;
+            });
+            card.innerHTML = `
+              <div class="schema-table-name">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="3" y1="9" x2="21" y2="9"></line>
+                </svg>
+                <span>${escapeHtml(tbl.name)}</span>
+              </div>
+              <div class="schema-columns-list">${colsHtml}</div>
+            `;
+            schemaGrid.appendChild(card);
+          });
+
+          // Hint box
+          const hintBox = document.getElementById('hint-box');
+          hintBox.style.display = 'none';
+          hintBox.innerHTML = `<strong>💡 Hint:</strong> ${escapeHtml(q.hint)}`;
+
+          // Render Expected Output Table
+          renderExpectedTable(q.expectedResult);
+        }
+
+        function renderExpectedTable(expected) {
+          const container = document.getElementById('expected-table-container');
+          if (!expected || !expected.columns || expected.columns.length === 0) {
+            container.innerHTML = '<div class="empty-state">No expected results defined.</div>';
+            return;
+          }
+
+          let tableHtml = '<table class="data-grid"><thead><tr><th class="col-index">#</th>';
+          expected.columns.forEach(col => {
+            tableHtml += `<th>${escapeHtml(col)}</th>`;
+          });
+          tableHtml += '</tr></thead><tbody>';
+
+          expected.values.forEach((row, idx) => {
+            tableHtml += `<tr><td class="col-index">${idx + 1}</td>`;
+            row.forEach(val => {
+              if (val === null || val === undefined) {
+                tableHtml += '<td><span class="null-value">NULL</span></td>';
+              } else {
+                tableHtml += `<td>${escapeHtml(val)}</td>`;
+              }
+            });
+            tableHtml += '</tr>';
+          });
+          tableHtml += '</tbody></table>';
+          container.innerHTML = tableHtml;
+        }
+
+        function renderResultsTable(result) {
+          const emptyState = document.getElementById('grid-empty-state');
+          const tableContainer = document.getElementById('grid-table-container');
+          const rowBadge = document.getElementById('badge-row-count');
+
+          if (!result || !result.columns || result.columns.length === 0) {
+            emptyState.style.display = 'flex';
+            emptyState.innerHTML = '<span>Query executed, but returned no rows or column metadata.</span>';
+            tableContainer.style.display = 'none';
+            rowBadge.textContent = '0 rows';
+            return;
+          }
+
+          emptyState.style.display = 'none';
+          tableContainer.style.display = 'block';
+          rowBadge.textContent = `${result.values.length} rows`;
+
+          let tableHtml = '<table class="data-grid"><thead><tr><th class="col-index">#</th>';
+          result.columns.forEach(col => {
+            tableHtml += `<th>${escapeHtml(col)}</th>`;
+          });
+          tableHtml += '</tr></thead><tbody>';
+
+          if (result.values.length === 0) {
+            tableHtml += `<tr><td colspan="${result.columns.length + 1}" style="text-align: center; color: var(--text-dim); padding: 24px;">(0 rows returned)</td></tr>`;
+          } else {
+            result.values.forEach((row, idx) => {
+              tableHtml += `<tr><td class="col-index">${idx + 1}</td>`;
+              row.forEach(cell => {
+                if (cell === null || cell === undefined) {
+                  tableHtml += '<td><span class="null-value">NULL</span></td>';
+                } else {
+                  tableHtml += `<td>${escapeHtml(cell)}</td>`;
+                }
+              });
+              tableHtml += '</tr>';
+            });
+          }
+
+          tableHtml += '</tbody></table>';
+          tableContainer.innerHTML = tableHtml;
+        }
+
+        // --- Question Selection & Loading ---
+        function selectQuestion(questionId) {
+          // Save draft of current question
+          const currentQ = getCurrentQuestion();
+          appState.savedQueries[currentQ.id] = getEditorQuery();
+
+          appState.currentId = questionId;
+          saveStorageState(appState);
+
+          const newQ = getCurrentQuestion();
+          renderSidebar();
+          renderContextPane();
+          resetDatabaseForCurrentQuestion();
+
+          // Load query draft or starter
+          const saved = appState.savedQueries[newQ.id];
+          setEditorQuery(saved !== undefined ? saved : newQ.starterSQL);
+
+          // Reset results view to starter state
+          document.getElementById('grid-empty-state').style.display = 'flex';
+          document.getElementById('grid-table-container').style.display = 'none';
+          document.getElementById('badge-row-count').textContent = '0 rows';
+          clearConsole();
+          appendConsole(`Switched to "${newQ.title}". Write your query and click "Run Query".`, 'info');
+
+          // Switch tab to grid
+          switchTab('tab-grid');
+        }
+
+        // --- Validation & Grading Logic ---
+        function compareValues(a, b) {
+          if (a === b) return true;
+          if (a === null || b === null) return a === b;
+          if (typeof a === 'number' && typeof b === 'number') {
+            return Math.abs(a - b) < 0.001;
+          }
+          return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+        }
+
+        function validateQueryResult(userResult, expected) {
+          if (!userResult || !userResult.columns) {
+            return {
+              passed: false,
+              message: 'Your query did not return any column headers or data set.'
+            };
+          }
+
+          const userCols = userResult.columns.map(c => String(c).toLowerCase().trim());
+          const expCols = expected.columns.map(c => String(c).toLowerCase().trim());
+
+          if (userCols.length !== expCols.length) {
+            return {
+              passed: false,
+              message: `Column count mismatch. Expected ${expCols.length} columns [${expected.columns.join(', ')}], but got ${userCols.length} columns [${userResult.columns.join(', ')}].`
+            };
+          }
+
+          // Check column names match
+          const mismatchCol = expCols.find((ec, i) => ec !== userCols[i]);
+          if (mismatchCol) {
+            return {
+              passed: false,
+              message: `Column names do not match expected headers.\nExpected: [${expected.columns.join(', ')}]\nReceived: [${userResult.columns.join(', ')}]`
+            };
+          }
+
+          // Check row count
+          if (userResult.values.length !== expected.values.length) {
+            return {
+              passed: false,
+              message: `Row count mismatch. Expected ${expected.values.length} rows, but your query returned ${userResult.values.length} rows.`
+            };
+          }
+
+          // Check cell values
+          for (let r = 0; r < expected.values.length; r++) {
+            const expRow = expected.values[r];
+            const userRow = userResult.values[r];
+            for (let c = 0; c < expRow.length; c++) {
+              if (!compareValues(userRow[c], expRow[c])) {
+                return {
+                  passed: false,
+                  message: `Row #${r + 1} value mismatch in column "${expected.columns[c]}". Expected: "${expRow[c]}", got: "${userRow[c]}".`
+                };
+              }
+            }
+          }
+
+          return { passed: true };
+        }
+
+        // --- Execute Query Handler ---
+        function executeQuery() {
+          const sql = getEditorQuery().trim();
+          if (!sql) {
+            appendConsole('No SQL query provided. Please write a query first.', 'warning');
+            switchTab('tab-console');
+            return;
+          }
+
+          if (!activeDB) {
+            appendConsole('Database engine is not ready yet. Please wait...', 'warning');
+            return;
+          }
+
+          const q = getCurrentQuestion();
+          const startTime = performance.now();
+
+          try {
+            // Re-seed DB to ensure clean execution state
+            activeDB.close();
+            activeDB = new SQLInstance.Database();
+            activeDB.run(q.setupSQL);
+
+            // Execute query
+            const results = activeDB.exec(sql);
+            const duration = (performance.now() - startTime).toFixed(1);
+            document.getElementById('execution-time-label').textContent = `Executed in ${duration}ms (SQLite WASM)`;
+
+            if (!results || results.length === 0) {
+              renderResultsTable(null);
+              appendConsole(`Query executed successfully in ${duration}ms, but returned 0 rows or no result set.`, 'warning');
+              switchTab('tab-console');
+              return;
+            }
+
+            const queryResult = results[results.length - 1]; // take last statement result
+            renderResultsTable(queryResult);
+
+            // Grade result
+            const grading = validateQueryResult(queryResult, q.expectedResult);
+
+            if (grading.passed) {
+              appendConsole(`🎉 SUCCESS: Query executed perfectly! All ${q.expectedResult.values.length} rows match expected criteria.`, 'success');
+              showToast(`Correct! +${q.difficulty_points} points earned!`, true);
+
+              // Update state
+              if (!appState.completedIds.includes(q.id)) {
+                appState.completedIds.push(q.id);
+                appState.score += q.difficulty_points;
+              }
+              // Remove from skipped if was skipped
+              appState.skippedIds = appState.skippedIds.filter(id => id !== q.id);
+              saveStorageState(appState);
+              renderSidebar();
+
+              // Auto advance prompt after short delay
+              const nextPending = QUESTIONS.find(item => !appState.completedIds.includes(item.id));
+              if (nextPending && nextPending.id !== q.id) {
+                setTimeout(() => {
+                  selectQuestion(nextPending.id);
+                  showToast(`Advancing to "${nextPending.title}"`, true);
+                }, 1600);
+              } else if (appState.completedIds.length === QUESTIONS.length) {
+                appendConsole(`🏆 CONGRATULATIONS! You have mastered all challenges in SQL Studio!`, 'success');
+              }
+            } else {
+              appendConsole(`Query successful, but results do not match the expected output. Try again.\nDetails: ${grading.message}`, 'error');
+              showToast('Query returned incorrect output. Check the Console for details.', false);
+              switchTab('tab-console');
+            }
+
+          } catch (err) {
+            const duration = (performance.now() - startTime).toFixed(1);
+            document.getElementById('execution-time-label').textContent = `Failed in ${duration}ms`;
+            appendConsole(`SQL Execution Error: ${err.message}`, 'error');
+            renderResultsTable(null);
+            switchTab('tab-console');
+          }
+        }
+
+        // --- Skip Challenge Handler ---
+        function skipCurrentQuestion() {
+          const q = getCurrentQuestion();
+          if (!appState.skippedIds.includes(q.id) && !appState.completedIds.includes(q.id)) {
+            appState.skippedIds.push(q.id);
+          }
+
+          // Find next question: first try pending, otherwise next in order
+          const pending = QUESTIONS.filter(item => !appState.completedIds.includes(item.id) && item.id !== q.id);
+          const nextQ = pending.length > 0 ? pending[0] : QUESTIONS[(QUESTIONS.indexOf(q) + 1) % QUESTIONS.length];
+
+          showToast(`Skipped "${q.title}". Moved to end of queue.`, false);
+          saveStorageState(appState);
+          selectQuestion(nextQ.id);
+        }
+
+        // --- Tab Navigation Handler ---
+        function switchTab(tabId) {
+          document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+          });
+          document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.toggle('active', panel.id === tabId);
+          });
+        }
+
+        // --- SQL Formatter Utility ---
+        function formatSQLQuery() {
+          let text = getEditorQuery();
+          const keywords = [
+            'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN',
+            'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'ON',
+            'GROUP BY', 'HAVING', 'ORDER BY', 'ASC', 'DESC', 'LIMIT', 'OFFSET',
+            'AS', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ROUND'
+          ];
+
+          keywords.forEach(kw => {
+            const regex = new RegExp(`\\b${kw}\\b`, 'gi');
+            text = text.replace(regex, kw);
+          });
+
+          setEditorQuery(text);
+          showToast('SQL keywords formatted to uppercase.', true);
+        }
+
+        // --- Peek Raw Seed Data Modal / Tab ---
+        function peekRawData() {
+          const q = getCurrentQuestion();
+          if (!activeDB) return;
+          try {
+            const tables = q.tables.map(t => t.name);
+            let combinedReport = `=== RAW SEEDED DATA FOR ${q.title.toUpperCase()} ===\n\n`;
+            tables.forEach(tableName => {
+              combinedReport += `--- Table: ${tableName} ---\n`;
+              const res = activeDB.exec(`SELECT * FROM ${tableName};`);
+              if (res && res.length > 0) {
+                const cols = res[0].columns;
+                combinedReport += cols.join(' | ') + '\n';
+                combinedReport += '-'.repeat(cols.join(' | ').length) + '\n';
+                res[0].values.forEach(row => {
+                  combinedReport += row.join(' | ') + '\n';
+                });
+              }
+              combinedReport += '\n';
+            });
+            appendConsole(combinedReport, 'info');
+            switchTab('tab-console');
+            showToast('Table contents printed to Console tab.', true);
+          } catch (e) {
+            appendConsole(`Could not read raw tables: ${e.message}`, 'error');
+          }
+        }
+
+        // --- Wire Event Listeners ---
+        function setupEventListeners() {
+          // Action Buttons
+          document.getElementById('btn-run-query').addEventListener('click', executeQuery);
+          document.getElementById('btn-skip-query').addEventListener('click', skipCurrentQuestion);
+          document.getElementById('btn-format-query').addEventListener('click', formatSQLQuery);
+          document.getElementById('btn-seed-peek').addEventListener('click', peekRawData);
+
+          // Reset buttons
+          document.getElementById('btn-reset-current').addEventListener('click', () => {
+            const q = getCurrentQuestion();
+            setEditorQuery(q.starterSQL);
+            delete appState.savedQueries[q.id];
+            saveStorageState(appState);
+            resetDatabaseForCurrentQuestion();
+            showToast('Current question code restored to template.', true);
+          });
+
+          document.getElementById('btn-reset-all').addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset all progress, scores, and saved queries?')) {
+              localStorage.removeItem(STORAGE_KEY);
+              appState = {
+                completedIds: [],
+                skippedIds: [],
+                score: 0,
+                currentId: QUESTIONS[0].id,
+                savedQueries: {}
+              };
+              saveStorageState(appState);
+              selectQuestion(QUESTIONS[0].id);
+              showToast('All progress reset.', true);
+            }
+          });
+
+          // Hint toggle
+          document.getElementById('btn-toggle-hint').addEventListener('click', () => {
+            const hintBox = document.getElementById('hint-box');
+            if (hintBox.style.display === 'none' || !hintBox.style.display) {
+              hintBox.style.display = 'block';
+            } else {
+              hintBox.style.display = 'none';
+            }
+          });
+
+          // Tabs
+          document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              switchTab(btn.dataset.tab);
+            });
+          });
+
+          // Keyboard shortcut: Ctrl+Enter / Cmd+Enter
+          window.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              executeQuery();
+            }
+          });
+        }
+
+        // --- Monaco Editor Initialization ---
+        function initMonacoEditor() {
+          if (typeof require === 'undefined') {
+            console.warn('Monaco AMD loader not yet loaded. Using fallback textarea.');
+            fallbackEditor.style.display = 'block';
+            monacoContainer.style.display = 'none';
+            return;
+          }
+
+          require.config({
+            paths: {
+              vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+            }
+          });
+
+          require(['vs/editor/editor.main'], function () {
+            try {
+              monacoEditor = monaco.editor.create(monacoContainer, {
+                value: fallbackEditor.value || getCurrentQuestion().starterSQL,
+                language: 'sql',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 13.5,
+                fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
+                lineNumbers: 'on',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                padding: { top: 12, bottom: 12 },
+                renderLineHighlight: 'line',
+                tabSize: 2,
+                wordWrap: 'on'
+              });
+
+              // Add Ctrl+Enter / Cmd+Enter keybinding directly inside Monaco
+              monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
+
+              // Auto save drafts on change
+              monacoEditor.onDidChangeModelContent(() => {
+                const q = getCurrentQuestion();
+                appState.savedQueries[q.id] = monacoEditor.getValue();
+                saveStorageState(appState);
+              });
+
+              fallbackEditor.style.display = 'none';
+              monacoContainer.style.display = 'block';
+            } catch (err) {
+              console.error('Failed to create Monaco editor, continuing with fallback:', err);
+              fallbackEditor.style.display = 'block';
+              monacoContainer.style.display = 'none';
+            }
+          });
+        }
+
+        // --- sql.js (WASM) Initialization ---
+        function initSQLite() {
+          const engineDot = document.getElementById('engine-dot');
+          const engineStatus = document.getElementById('engine-status-text');
+
+          if (typeof initSqlJs !== 'function') {
+            engineStatus.textContent = 'SQLite Error (CDN unavailable)';
+            engineDot.style.backgroundColor = '#ef4444';
+            appendConsole('Could not locate sql.js library from CDN. Please check network connection.', 'error');
+            return;
+          }
+
+          initSqlJs({
+            locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
+          })
+            .then(SQL => {
+              SQLInstance = SQL;
+              engineDot.style.backgroundColor = '#10b981';
+              engineStatus.textContent = 'SQLite (WASM) Ready';
+              appendConsole('SQLite 3.x WebAssembly engine loaded successfully.', 'info');
+              resetDatabaseForCurrentQuestion();
+            })
+            .catch(err => {
+              console.error('sql.js load error:', err);
+              engineDot.style.backgroundColor = '#ef4444';
+              engineStatus.textContent = 'SQLite WASM Load Failed';
+              appendConsole(`SQLite WASM Initialization Error: ${err.message}`, 'error');
+            });
+        }
+
+        // --- Bootstrap Application ---
+        function initApp() {
+          setupEventListeners();
+          renderSidebar();
+          renderContextPane();
+
+          // Initialize starter query for first question
+          const q = getCurrentQuestion();
+          const initialCode = appState.savedQueries[q.id] || q.starterSQL;
+          fallbackEditor.value = initialCode;
+
+          // Initialize Monaco and SQLite
+          initMonacoEditor();
+          initSQLite();
+        }
+
+        // Wait for DOM
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+          initApp();
+        }
+      })();
+    </script>
+  </body>
+</html>

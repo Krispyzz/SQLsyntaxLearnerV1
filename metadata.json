@@ -1,0 +1,6 @@
+{
+  "name": "SQL Studio - Interactive Database IDE",
+  "description": "A client-side interactive SQL learning IDE with in-browser SQLite WebAssembly, Monaco Editor, and challenge curriculum.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
